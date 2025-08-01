@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
 import { DayPlan } from '../types/diet';
 import MealList from './MealList';
 
@@ -9,23 +9,11 @@ interface Props {
 
 export default function DayPlanView({ plan }: Props) {
   return (
-    <View style={styles.container}>
-      <Text style={styles.date}>{plan.date}</Text>
+    <View className="p-4 border-b border-gray-300 dark:border-gray-600">
+      <Text className="text-xl font-bold mb-2 text-black dark:text-white">{plan.date}</Text>
       {plan.meals.map(meal => (
         <MealList key={meal.id} meal={meal} />
       ))}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    padding: 16,
-    borderBottomColor: '#ccc',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  date: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-});

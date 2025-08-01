@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, FlatList } from 'react-native';
+import { View, Text, TextInput, StyleSheet, FlatList } from 'react-native';
+import { Button } from '../components/ui/button';
 import { Diet, DayPlan, Meal, MealItem } from '../types/diet';
 import uuid from 'react-native-uuid';
 
@@ -57,15 +58,15 @@ export default function EditDietScreen({ diet, onSave, onBack }: Props) {
         value={itemName}
         onChangeText={setItemName}
       />
-      <Button title="Add Item" onPress={addItem} />
+      <Button text="Add Item" onPress={addItem} className="mt-2" />
       <FlatList
         data={items}
         keyExtractor={item => item.id}
         renderItem={({ item }) => <Text>{item.name}</Text>}
       />
-      <Button title="Add Meal" onPress={addMeal} />
-      <Button title="Save Day" onPress={savePlan} />
-      <Button title="Back" onPress={onBack} />
+      <Button text="Add Meal" onPress={addMeal} className="mt-2" />
+      <Button text="Save Day" onPress={savePlan} className="mt-2" />
+      <Button text="Back" onPress={onBack} className="mt-2" />
     </View>
   );
 }

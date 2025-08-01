@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
 import { Meal } from '../types/diet';
 import MealItem from './MealItem';
 
@@ -9,22 +9,11 @@ interface Props {
 
 export default function MealList({ meal }: Props) {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{meal.title}</Text>
+    <View className="my-2">
+      <Text className="text-lg font-bold mb-1 text-black dark:text-white">{meal.title}</Text>
       {meal.items.map(item => (
         <MealItem key={item.id} item={item} />
       ))}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    marginVertical: 8,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-});

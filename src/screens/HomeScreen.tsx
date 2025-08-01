@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Button, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
+import { Button } from '../components/ui/button';
 import { Diet } from '../types/diet';
 import DietList from '../components/DietList';
 
@@ -11,31 +12,13 @@ interface Props {
 
 export default function HomeScreen({ diet, onEdit, onImport }: Props) {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>My Diet</Text>
+    <View className="flex-1 pt-10 bg-white dark:bg-black">
+      <Text className="text-2xl font-bold mx-4 mb-4 text-black dark:text-white">My Diet</Text>
       <DietList diet={diet} />
-      <View style={styles.buttons}>
-        <Button title="Edit Diet" onPress={onEdit} />
-        <Button title="Import" onPress={onImport} />
+      <View className="flex-row justify-around p-4">
+        <Button text="Edit Diet" onPress={onEdit} />
+        <Button text="Import" onPress={onImport} className="ml-2" />
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: 40,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginHorizontal: 16,
-    marginBottom: 16,
-  },
-  buttons: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    padding: 16,
-  },
-});
