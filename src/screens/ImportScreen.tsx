@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Alert } from 'react-native';
+import { Button } from '../components/ui/button';
 import { Diet } from '../types/diet';
 import { sampleDiet } from '../utils/sampleDiet';
 
@@ -36,9 +37,9 @@ export default function ImportScreen({ onImport, onBack }: Props) {
         placeholder="{...}"
       />
       <View style={styles.buttons}>
-        <Button title="Import" onPress={handleImport} />
-        <Button title="Load Sample" onPress={handleLoadSample} />
-        <Button title="Back" onPress={onBack} />
+        <Button text="Import" onPress={handleImport} />
+        <Button text="Load Sample" onPress={handleLoadSample} className="mx-2" />
+        <Button text="Back" onPress={onBack} />
       </View>
     </View>
   );
