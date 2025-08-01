@@ -1,0 +1,9 @@
+# Node modules
+node_modules/
+# Expo generated files
+.expo/
+dist/
+.env
+
+# macOS
+.DS_Store
