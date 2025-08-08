@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dieta - Calendario con Scambi</title>
+<style>
+  :root{
+    --pri:#4a90e2;
+    --bg:#f7f8fa;
+    --card:#fff;
+    --muted:#666;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#222;display:flex;flex-direction:column;align-items:center;padding:20px}
+  h1{margin:0 0 16px}
+  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+  .btn{background:var(--pri);color:#fff;border:0;border-radius:8px;padding:10px 14px;cursor:pointer}
+  .btn.secondary{background:#e9eef7;color:#173b72}
+  .calendar-wrap{display:flex;flex-direction:column;align-items:center;margin-bottom:18px}
+  .cal-header{display:flex;justify-content:space-between;align-items:center;width:100%;max-width:560px;margin-bottom:6px}
+  .cal-header .btn{padding:6px 10px}
+  .week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;max-width:560px;width:100%;text-align:center;font-weight:600;color:#1a2a4a;margin-bottom:4px}
+  .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;max-width:560px;width:100%}
+  .cell{background:var(--card);border-radius:10px;padding:10px;min-height:56px;box-shadow:0 1px 4px rgba(0,0,0,.06);position:relative;cursor:pointer}
+  .cell.disabled{opacity:.35;pointer-events:none}
+  .cell.sel{outline:2px solid var(--pri)}
+  .badge{position:absolute;bottom:6px;left:6px;right:6px;background:#fff3cd;border:1px solid #ffe49a;color:#6b5200;border-radius:6px;padding:2px 6px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .meals{width:100%;max-width:860px}
+  .card{background:var(--card);border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);padding:14px;margin-bottom:12px}
+  .card h3{margin:0 0 8px;display:flex;justify-content:space-between;align-items:center;color:var(--pri);}
+  .items{border-top:1px solid #f0f2f6;margin-top:8px;padding-top:6px}
+  .row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid #f5f6f8}
+  .row:last-child{border-bottom:0}
+  details{margin-top:6px;background:#f6f8fb;border-radius:8px;padding:6px}
+  summary{cursor:pointer}
+  .tag-swap{display:inline-block;background:#fff3cd;border:1px solid #ffe49a;color:#6b5200;border-radius:999px;padding:2px 8px;font-size:12px;margin-left:8px}
+  /* MODAL */
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;padding:20px;z-index:20}
+  .modal{background:#fff;border-radius:12px;max-width:520px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,.25);overflow:hidden}
+  .modal header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #eef1f6}
+  .modal h4{margin:0}
+  .modal .content{padding:12px 14px;max-height:60vh;overflow:auto}
+  .modal .list{display:flex;flex-direction:column;gap:8px}
+  .choice{display:flex;justify-content:space-between;align-items:center;border:1px solid #e6ebf5;border-radius:8px;padding:8px 10px}
+  .modal footer{display:flex;gap:10px;justify-content:flex-end;padding:12px 14px;border-top:1px solid #eef1f6}
+  /* Reset modal */
+  #resetModal .list{margin-top:10px;}
+  #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 20px;border-radius:6px;display:none;z-index:30}
+</style>
+</head>
+<body>
+<h1>Calendario Dieta</h1>
+
+<div class="toolbar">
+  <input type="file" id="fileInput" accept=".json" hidden>
+  <button class="btn" id="btnImport">📂 Importa dieta</button>
+  <button class="btn secondary" id="btnResetScambi">🧹 Reset scambi</button>
+</div>
+
+<div class="calendar-wrap">
+  <div class="cal-header">
+    <button class="btn secondary" id="prevMonth">←</button>
+    <div id="monthYear" style="font-weight:700"></div>
+    <button class="btn secondary" id="nextMonth">→</button>
+  </div>
+  <div class="week"><div>L</div><div>M</div><div>M</div><div>G</div><div>V</div><div>S</div><div>D</div></div>
+  <div id="calendar" class="grid"></div>
+</div>
+
+<div class="meals" id="meals"></div>
+
+<!-- Swap Modal -->
+<div class="modal-backdrop" id="swapModal">
+  <div class="modal">
+    <header>
+      <h4 id="swapTitle">Scambia pasto</h4>
+      <button class="btn secondary" id="closeSwapModal">Chiudi</button>
+    </header>
+    <div class="content">
+      <div id="swapList" class="list"></div>
+    </div>
+    <footer>
+      <button class="btn secondary" id="cancelSwap">Annulla</button>
+      <button class="btn" id="confirmSwap" disabled>Conferma scambio</button>
+    </footer>
+  </div>
+</div>
+
+<!-- Reset Modal -->
+<div class="modal-backdrop" id="resetModal">
+  <div class="modal">
+    <header>
+      <h4>Reset scambi</h4>
+      <button class="btn secondary" id="closeResetModal">Chiudi</button>
+    </header>
+    <div class="content">
+      <p>Sei sicuro di voler cancellare tutti gli scambi?</p>
+      <label class="choice"><span>Elimina anche la dieta salvata</span><input type="checkbox" id="resetDietCheckbox"></label>
+    </div>
+    <footer>
+      <button class="btn secondary" id="cancelReset">Annulla</button>
+      <button class="btn" id="confirmReset">Conferma</button>
+    </footer>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+  // Utility functions
+  const MONTHS=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
+  const WEEKDAYS=["Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato","Domenica"];
+  const fmtISO = d => {
+    // Format date to ISO string (yyyy-mm-dd) without timezone shift
+    const y=d.getFullYear();
+    const m=String(d.getMonth()+1).padStart(2,'0');
+    const day=String(d.getDate()).padStart(2,'0');
+    return y+'-'+m+'-'+day;
+  };
+  const parseISO = iso => {
+    const [y,m,d]=iso.split('-').map(Number);
+    return new Date(y,m-1,d);
+  };
+  const dayName = d => WEEKDAYS[(d.getDay()+6)%7];
+  const monthName = d => MONTHS[d.getMonth()];
+  const fmtHuman = d => dayName(d).toLowerCase()+' '+d.getDate()+' '+monthName(d).toLowerCase();
+  const getDayPlanByDate = d => {
+    const name = dayName(d);
+    return (dieta.days||[]).find(x => (x.name||'').toLowerCase()===name.toLowerCase());
+  };
+  const getMealByName = (dayPlan, mealName) => (dayPlan?.meals||[]).find(m => m.name===mealName);
+
+  // DOM elements
+  const els = {
+    fileInput: document.getElementById('fileInput'),
+    btnImport: document.getElementById('btnImport'),
+    btnResetScambi: document.getElementById('btnResetScambi'),
+    calendar: document.getElementById('calendar'),
+    monthYear: document.getElementById('monthYear'),
+    meals: document.getElementById('meals'),
+    prevMonth: document.getElementById('prevMonth'),
+    nextMonth: document.getElementById('nextMonth'),
+    swapModal: document.getElementById('swapModal'),
+    swapList: document.getElementById('swapList'),
+    swapTitle: document.getElementById('swapTitle'),
+    closeSwapModal: document.getElementById('closeSwapModal'),
+    cancelSwap: document.getElementById('cancelSwap'),
+    confirmSwap: document.getElementById('confirmSwap'),
+    resetModal: document.getElementById('resetModal'),
+    closeResetModal: document.getElementById('closeResetModal'),
+    cancelReset: document.getElementById('cancelReset'),
+    confirmReset: document.getElementById('confirmReset'),
+    resetDietCheckbox: document.getElementById('resetDietCheckbox'),
+    toast: document.getElementById('toast'),
+  };
+  // Ensure necessary elements exist
+  console.assert(els.swapList && els.btnResetScambi && els.confirmSwap && els.confirmReset, 'Missing essential elements');
+
+  // Data
+  let dieta = JSON.parse(localStorage.getItem('dieta')||'{}') || {days:[]};
+  let swaps = JSON.parse(localStorage.getItem('swaps')||'{}') || {};
+  let currentDate = new Date();
+  let selectedDate = new Date();
+  let pendingSwap = null;
+
+  // Event: Import diet
+  els.btnImport.addEventListener('click', () => els.fileInput.click());
+  els.fileInput.addEventListener('change', e=>{
+    const file=e.target.files[0];
+    if(!file) return;
+    const reader=new FileReader();
+    reader.onload = ev=>{
+      try{
+        dieta = JSON.parse(ev.target.result);
+        localStorage.setItem('dieta', JSON.stringify(dieta));
+        renderCalendar(); renderMeals();
+        showToast('Dieta importata!');
+      }catch(err){ alert('Errore nella lettura del file JSON'); }
+    };
+    reader.readAsText(file);
+  });
+
+  // Event: Reset scambi button
+  els.btnResetScambi.addEventListener('click', () => {
+    els.resetDietCheckbox.checked=false;
+    els.resetModal.style.display='flex';
+  });
+  // Reset modal actions
+  els.closeResetModal.addEventListener('click', ()=>{ els.resetModal.style.display='none'; });
+  els.cancelReset.addEventListener('click', ()=>{ els.resetModal.style.display='none'; });
+  els.confirmReset.addEventListener('click', ()=>{
+    // Clear swaps
+    swaps = {};
+    localStorage.setItem('swaps', JSON.stringify(swaps));
+    // Optionally clear dieta
+    if(els.resetDietCheckbox.checked){
+      dieta = {days:[]};
+      localStorage.removeItem('dieta');
+    }
+    els.resetModal.style.display='none';
+    renderCalendar(); renderMeals();
+    showToast('Scambi cancellati!');
+  });
+
+  // Calendar navigation
+  els.prevMonth.addEventListener('click', ()=>{
+    currentDate.setMonth(currentDate.getMonth()-1);
+    syncSelectedWithinMonth();
+    renderCalendar(); renderMeals();
+  });
+  els.nextMonth.addEventListener('click', ()=>{
+    currentDate.setMonth(currentDate.getMonth()+1);
+    syncSelectedWithinMonth();
+    renderCalendar(); renderMeals();
+  });
+
+  function syncSelectedWithinMonth(){
+    const max = new Date(currentDate.getFullYear(), currentDate.getMonth()+1, 0).getDate();
+    const day = Math.min(selectedDate.getDate(), max);
+    selectedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+  }
+
+  function renderCalendar(){
+    const cal=els.calendar;
+    cal.innerHTML='';
+    els.monthYear.textContent = monthName(currentDate)+' '+currentDate.getFullYear();
+    const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(),1).getDay();
+    const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth()+1,0).getDate();
+    const blanks = (firstDay+6)%7;
+    for(let i=0;i<blanks;i++){
+      const div=document.createElement('div');
+      div.className='cell disabled';
+      cal.appendChild(div);
+    }
+    for(let d=1; d<=daysInMonth; d++){
+      const div=document.createElement('div');
+      div.className='cell';
+      div.textContent=d;
+      const cellDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), d);
+      if(fmtISO(cellDate)===fmtISO(selectedDate)) div.classList.add('sel');
+      // Add badge if there are swaps for this date
+      const iso=fmtISO(cellDate);
+      const swapForDay = swaps[iso] || {};
+      // Determine if there is any swap from another date to this date
+      let incoming = false;
+      let incomingMealName = '';
+      let incomingSourceISO = '';
+      for(const [sourceISO, map] of Object.entries(swaps)){
+        for(const [mealName,targetISO] of Object.entries(map)){
+          if(targetISO===iso){
+            incoming = true;
+            incomingMealName = mealName;
+            incomingSourceISO = sourceISO;
+            break;
+          }
+        }
+        if(incoming) break;
+      }
+      if(Object.keys(swapForDay).length || incoming){
+        const badge=document.createElement('div');
+        badge.className='badge';
+        let text='';
+        if(Object.keys(swapForDay).length){
+          const mealName = Object.keys(swapForDay)[0];
+          const targetISO = swapForDay[mealName];
+          text = mealName+' scambiata con '+fmtHuman(parseISO(targetISO));
+        } else if(incoming){
+          text = incomingMealName+' scambiata con '+fmtHuman(parseISO(incomingSourceISO));
+        }
+        badge.textContent = text;
+        div.appendChild(badge);
+      }
+      div.addEventListener('click', ()=>{
+        selectedDate = cellDate;
+        renderCalendar();
+        renderMeals();
+      });
+      cal.appendChild(div);
+    }
+  }
+
+  function effectiveSourceISOFor(mealName, dateISO){
+    const map=swaps[dateISO];
+    if(map && map[mealName]) return map[mealName];
+    return dateISO;
+  }
+
+  function renderMeals(){
+    const mealsDiv = els.meals;
+    mealsDiv.innerHTML='';
+    if(!dieta?.days?.length) return;
+    const dateISO = fmtISO(selectedDate);
+    const dayPlan = getDayPlanByDate(selectedDate);
+    if(!dayPlan) return;
+    (dayPlan.meals||[]).forEach(meal=>{
+      const sourceISO = effectiveSourceISOFor(meal.name, dateISO);
+      const sourcePlan = getDayPlanByDate(parseISO(sourceISO));
+      const srcMeal = getMealByName(sourcePlan, meal.name) || meal;
+      const card=document.createElement('div');
+      card.className='card';
+      const header=document.createElement('h3');
+      header.style.display='flex';
+      header.style.justifyContent='space-between';
+      header.style.alignItems='center';
+      const leftSpan=document.createElement('span');
+      leftSpan.textContent=srcMeal.name;
+      header.appendChild(leftSpan);
+      // Tag if swapped
+      if(sourceISO!==dateISO){
+        const tag=document.createElement('span');
+        tag.className='tag-swap';
+        tag.textContent = 'scambiata con '+fmtHuman(parseISO(sourceISO));
+        header.appendChild(tag);
+      }
+      const rightSpan=document.createElement('span');
+      const swapButton=document.createElement('button');
+      swapButton.className='btn secondary';
+      swapButton.textContent='Scambia';
+      swapButton.addEventListener('click', ()=>{
+        openSwapModal(meal.name, dateISO);
+      });
+      rightSpan.appendChild(swapButton);
+      header.appendChild(rightSpan);
+      card.appendChild(header);
+
+      // Items
+      const itemsContainer=document.createElement('div');
+      itemsContainer.className='items';
+      (srcMeal.items||[]).forEach(item=>{
+        const row=document.createElement('div');
+        row.className='row';
+        const left=document.createElement('div');
+        left.innerHTML = '<strong>'+item.name+'</strong>'+ (item.note? ' — <em style="color:'+ '--muted'+'">'+item.note+'</em>':'');
+        const qty=document.createElement('div');
+        qty.textContent = [item.quantity,item.unit].filter(Boolean).join(' ');
+        row.appendChild(left);
+        row.appendChild(qty);
+        itemsContainer.appendChild(row);
+        // Alternativi
+        const alt = (srcMeal.alternatives||[]).find(a=>a.name===item.name);
+        if(alt && alt.options && alt.options.length){
+          const details=document.createElement('details');
+          const summary=document.createElement('summary');
+          summary.textContent='Alternative';
+          details.appendChild(summary);
+          alt.options.forEach(opt=>{
+            const altDiv=document.createElement('div');
+            altDiv.style.fontSize='14px';
+            altDiv.style.marginTop='4px';
+            altDiv.textContent = opt.name + (opt.quantity? ' - '+opt.quantity+' '+(opt.unit||''):'');
+            details.appendChild(altDiv);
+          });
+          itemsContainer.appendChild(details);
+        }
+      });
+      card.appendChild(itemsContainer);
+      mealsDiv.appendChild(card);
+    });
+  }
+
+  // Swap Modal functions
+  els.closeSwapModal.addEventListener('click', closeSwapModal);
+  els.cancelSwap.addEventListener('click', closeSwapModal);
+  function closeSwapModal(){
+    els.swapModal.style.display='none';
+    pendingSwap = null;
+  }
+
+  function openSwapModal(mealName, dateAISO){
+    pendingSwap = { mealName, dateAISO, targetISO:null };
+    els.swapTitle.textContent = 'Scambia '+mealName+' di '+fmtHuman(parseISO(dateAISO));
+    els.swapList.innerHTML='';
+    const start = parseISO(dateAISO);
+    for(let i=1;i<=7;i++){
+      const d=new Date(start);
+      d.setDate(d.getDate()+i);
+      const iso=fmtISO(d);
+      const plan=getDayPlanByDate(d);
+      const m = getMealByName(plan, mealName);
+      const label=document.createElement('label');
+      label.className='choice';
+      const left=document.createElement('div');
+      left.innerHTML = '<strong>'+fmtHuman(d)+'</strong><div style="color:var(--muted);font-size:13px">'+(m? m.items.map(x=>x.name).slice(0,2).join(', '):'—')+'</div>';
+      const radio=document.createElement('input');
+      radio.type='radio';
+      radio.name='swapTarget';
+      radio.value=iso;
+      radio.addEventListener('change', () => {
+        pendingSwap.targetISO=iso;
+        els.confirmSwap.disabled=false;
+      });
+      label.appendChild(left);
+      label.appendChild(radio);
+      els.swapList.appendChild(label);
+    }
+    els.confirmSwap.disabled=true;
+    els.swapModal.style.display='flex';
+  }
+
+  els.confirmSwap.addEventListener('click', ()=>{
+    if(!pendingSwap || !pendingSwap.targetISO) return;
+    const { mealName, dateAISO, targetISO: dateBISO } = pendingSwap;
+
+    // Remove existing swap for A and B for this meal
+    const removeLinks = iso => {
+      if(swaps[iso] && swaps[iso][mealName]){
+        const other = swaps[iso][mealName];
+        delete swaps[iso][mealName];
+        if(Object.keys(swaps[iso]).length===0) delete swaps[iso];
+        if(swaps[other] && swaps[other][mealName]===iso){
+          delete swaps[other][mealName];
+          if(Object.keys(swaps[other]).length===0) delete swaps[other];
+        }
+      }
+    };
+    removeLinks(dateAISO); removeLinks(dateBISO);
+
+    // Add new mapping
+    swaps[dateAISO] = swaps[dateAISO] || {};
+    swaps[dateBISO] = swaps[dateBISO] || {};
+    swaps[dateAISO][mealName] = dateBISO;
+    swaps[dateBISO][mealName] = dateAISO;
+
+    localStorage.setItem('swaps', JSON.stringify(swaps));
+    closeSwapModal();
+    renderCalendar(); renderMeals();
+    showToast('Scambio effettuato!');
+  });
+
+  // Toast function
+  function showToast(msg){
+    const t=els.toast;
+    t.textContent=msg;
+    t.style.display='block';
+    setTimeout(()=>{ t.style.display='none'; },3000);
+  }
+
+  // Initial render
+  renderCalendar();
+  renderMeals();
+
+});
+</script>
+</body>
+</html>
