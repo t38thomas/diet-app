@@ -56,6 +56,11 @@
   <input type="file" id="fileInput" accept=".json" hidden>
   <button class="btn" id="btnImport">📂 Importa dieta</button>
   <button class="btn secondary" id="btnResetScambi">🧹 Reset scambi</button>
+  <!-- Cloud sync buttons -->
+  <button class="btn secondary" id="btnSaveCloud">☁️ Salva su cloud</button>
+  <button class="btn secondary" id="btnLoadCloud">☁️ Carica dal cloud</button>
+  <!-- Firebase auth login/logout button -->
+  <button class="btn secondary" id="btnLogin">🔐 Accedi</button>
 </div>
 
 <div class="calendar-wrap">
@@ -107,6 +112,12 @@
 
 <div id="toast"></div>
 
+<!-- Firebase SDKs (compat versions) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore-compat.js"></script>
+<!-- Firebase Authentication (compat) for Google Sign-In -->
+<script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-auth-compat.js"></script>
+
 <script>
 document.addEventListener('DOMContentLoaded',function(){
   // Utility functions
@@ -154,6 +165,9 @@ document.addEventListener('DOMContentLoaded',function(){
     confirmReset: document.getElementById('confirmReset'),
     resetDietCheckbox: document.getElementById('resetDietCheckbox'),
     toast: document.getElementById('toast'),
+    btnSaveCloud: document.getElementById('btnSaveCloud'),
+    btnLoadCloud: document.getElementById('btnLoadCloud'),
+    btnLogin: document.getElementById('btnLogin'),
   };
   // Ensure necessary elements exist
   console.assert(els.swapList && els.btnResetScambi && els.confirmSwap && els.confirmReset, 'Missing essential elements');
@@ -165,33 +179,78 @@ document.addEventListener('DOMContentLoaded',function(){
   let selectedDate = new Date();
   let pendingSwap = null;
 
-  // Event: Import diet
-  els.btnImport.addEventListener('click', () => els.fileInput.click());
-  els.fileInput.addEventListener('change', e=>{
-    const file=e.target.files[0];
+  // Firebase initialization
+  const firebaseConfig = {
+    apiKey: "AIzaSyB1MluZ6ywopTli5WjEfvTXEbee2ySGpc0",
+    authDomain: "dieta-app-d8a54.firebaseapp.com",
+    projectId: "dieta-app-d8a54",
+    storageBucket: "dieta-app-d8a54.appspot.com",
+    messagingSenderId: "1001197350543",
+    appId: "1:1001197350543:web:9c5045310a2383d2bc9afa"
+  };
+  if (typeof firebase !== 'undefined' && !firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+  }
+  const db = (typeof firebase !== 'undefined') ? firebase.firestore() : null;
+
+  // Initialize Firebase Authentication and manage current user
+  const auth = (typeof firebase !== 'undefined') ? firebase.auth() : null;
+  let currentUID = null;
+  if (auth) {
+    auth.onAuthStateChanged(user => {
+      currentUID = user ? user.uid : null;
+      // Update login button label
+      if (els.btnLogin) {
+        els.btnLogin.textContent = currentUID ? 'Esci' : '🔐 Accedi';
+      }
+      // Enable/disable cloud buttons based on auth state
+      const on = !!currentUID;
+      if (els.btnSaveCloud) els.btnSaveCloud.disabled = !on;
+      if (els.btnLoadCloud) els.btnLoadCloud.disabled = !on;
+    });
+  }
+
+  // Show toast utility
+  function showToast(msg){
+    const t=els.toast;
+    t.textContent=msg;
+    t.style.display='block';
+    setTimeout(()=>{ t.style.display='none'; },3000);
+  }
+
+  // File import
+  els.btnImport.addEventListener('click', ()=>{
+    els.fileInput.click();
+  });
+  els.fileInput.addEventListener('change', e => {
+    const file=e.target.files?.[0];
     if(!file) return;
     const reader=new FileReader();
-    reader.onload = ev=>{
-      try{
+    reader.onload = ev => {
+      try {
         dieta = JSON.parse(ev.target.result);
         localStorage.setItem('dieta', JSON.stringify(dieta));
         renderCalendar(); renderMeals();
-        showToast('Dieta importata!');
-      }catch(err){ alert('Errore nella lettura del file JSON'); }
+        showToast('Dieta importata');
+      } catch (err){
+        console.error(err);
+        showToast('Errore importazione');
+      }
     };
     reader.readAsText(file);
   });
 
-  // Event: Reset scambi button
+  // Reset scambi
   els.btnResetScambi.addEventListener('click', () => {
-    els.resetDietCheckbox.checked=false;
     els.resetModal.style.display='flex';
   });
-  // Reset modal actions
-  els.closeResetModal.addEventListener('click', ()=>{ els.resetModal.style.display='none'; });
-  els.cancelReset.addEventListener('click', ()=>{ els.resetModal.style.display='none'; });
-  els.confirmReset.addEventListener('click', ()=>{
-    // Clear swaps
+  els.closeResetModal.addEventListener('click', () => {
+    els.resetModal.style.display='none';
+  });
+  els.cancelReset.addEventListener('click', () => {
+    els.resetModal.style.display='none';
+  });
+  els.confirmReset.addEventListener('click', () => {
     swaps = {};
     localStorage.setItem('swaps', JSON.stringify(swaps));
     // Optionally clear dieta
@@ -203,6 +262,75 @@ document.addEventListener('DOMContentLoaded',function(){
     renderCalendar(); renderMeals();
     showToast('Scambi cancellati!');
   });
+
+  // Login/logout event handler
+  if (els.btnLogin && auth) {
+    els.btnLogin.addEventListener('click', async () => {
+      if (!auth) return;
+      if (currentUID) {
+        // User is logged in, so sign out
+        await auth.signOut();
+        showToast('Logout effettuato');
+      } else {
+        // Sign in with Google
+        const provider = new firebase.auth.GoogleAuthProvider();
+        try {
+          await auth.signInWithPopup(provider);
+          showToast('Accesso effettuato');
+        } catch (err) {
+          console.error('Errore login', err);
+          showToast('Errore durante l\'accesso');
+        }
+      }
+    });
+  }
+
+  // Cloud sync event handlers
+  if (els.btnSaveCloud && els.btnLoadCloud) {
+    // Save current state to Firestore under the user's UID
+    els.btnSaveCloud.addEventListener('click', async () => {
+      if (!db) { showToast('Firebase non è inizializzato'); return; }
+      // Require authentication
+      if (!currentUID) {
+        showToast('Accedi prima per salvare');
+        return;
+      }
+      try {
+        await db.collection('users').doc(currentUID).set({
+          dieta: dieta,
+          swaps: swaps,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        showToast('Stato salvato su cloud');
+      } catch (e) {
+        console.error('Errore salvataggio cloud', e);
+        showToast('Errore durante il salvataggio');
+      }
+    });
+    // Load state from Firestore for the current user
+    els.btnLoadCloud.addEventListener('click', async () => {
+      if (!db) { showToast('Firebase non è inizializzato'); return; }
+      if (!currentUID) {
+        showToast('Accedi prima per caricare');
+        return;
+      }
+      try {
+        const docSnap = await db.collection('users').doc(currentUID).get();
+        if (docSnap.exists) {
+          const data = docSnap.data();
+          if (data.dieta) { dieta = data.dieta; localStorage.setItem('dieta', JSON.stringify(dieta)); }
+          if (data.swaps) { swaps = data.swaps; localStorage.setItem('swaps', JSON.stringify(swaps)); }
+          renderCalendar(); renderMeals();
+          showToast('Dati caricati dal cloud');
+        } else {
+          showToast('Nessun dato trovato nel cloud');
+        }
+      } catch (e) {
+        console.error('Errore caricamento cloud', e);
+        showToast('Errore durante il caricamento');
+      }
+    });
+  }
 
   // Calendar navigation
   els.prevMonth.addEventListener('click', ()=>{
@@ -428,14 +556,6 @@ document.addEventListener('DOMContentLoaded',function(){
     renderCalendar(); renderMeals();
     showToast('Scambio effettuato!');
   });
-
-  // Toast function
-  function showToast(msg){
-    const t=els.toast;
-    t.textContent=msg;
-    t.style.display='block';
-    setTimeout(()=>{ t.style.display='none'; },3000);
-  }
 
   // Initial render
   renderCalendar();
